@@ -2,7 +2,8 @@
 #error "You must define TH_GENERIC_FILE before including THGenerateAllTypes.h"
 #endif
 
-#define real float
+//#define real float
+typedef float real;
 #define accreal double
 #define Real Float
 #define THInf FLT_MAX
