@@ -621,6 +621,7 @@ static void THTensor_(rawInit)(THTensor *self)
   self->stride = NULL;
   self->nDimension = 0;
   self->flag = TH_TENSOR_REFCOUNTED;
+  self->mkldnnLayout = 0;
 }
 
 static void THTensor_(rawSet)(THTensor *self, THStorage *storage, long storageOffset, int nDimension, long *size, long *stride)
