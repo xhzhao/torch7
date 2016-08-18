@@ -505,6 +505,10 @@ int THTensor_(isContiguous)(const THTensor *self)
 {
   long z = 1;
   int d;
+  if(self->mkldnnLayout != 0)
+  {
+    return 1;
+  }
   for(d = self->nDimension-1; d >= 0; d--)
   {
     if(self->size[d] != 1)
