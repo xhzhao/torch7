@@ -2,6 +2,11 @@
 #define TH_GENERIC_FILE "generic/THStorage.c"
 #else
 
+void THStorage_(setMKLDNN)(THStorage *self)
+{
+  self->mkldnn = 1;
+}
+
 real* THStorage_(data)(const THStorage *self)
 {
   return self->data;
@@ -38,6 +43,7 @@ THStorage* THStorage_(newWithAllocator)(long size,
   storage->flag = TH_STORAGE_REFCOUNTED | TH_STORAGE_RESIZABLE | TH_STORAGE_FREEMEM;
   storage->allocator = allocator;
   storage->allocatorContext = allocatorContext;
+  storage->mkldnn = 0;
   return storage;
 }
 
@@ -107,10 +113,37 @@ void THStorage_(retain)(THStorage *storage)
     THAtomicIncrementRef(&storage->refcount);
 }
 
+extern int dnnReleaseBuffer_F32 (void *pPtr);
+void THStorage_(freeMKLDNN)(THStorage *storage)
+{
+  if(!storage)
+    return;
+
+  if((storage->flag & TH_STORAGE_REFCOUNTED) && (THAtomicGet(&storage->refcount) > 0))
+  {
+    if(THAtomicDecrementRef(&storage->refcount))
+    {
+      if(storage->flag & TH_STORAGE_FREEMEM) {
+        //storage->allocator->free(storage->allocatorContext, storage->data);
+      }
+      if(storage->flag & TH_STORAGE_VIEW) {
+        THStorage_(free)(storage->view);
+      }
+      //THFree(storage);
+      dnnReleaseBuffer_F32(storage->data);
+    }
+  }
+}
+
 void THStorage_(free)(THStorage *storage)
 {
   if(!storage)
     return;
+  if(storage->mkldnn != 0)
+  {
+    THStorage_(freeMKLDNN)(storage);
+    return;
+  }
 
   if((storage->flag & TH_STORAGE_REFCOUNTED) && (THAtomicGet(&storage->refcount) > 0))
   {
@@ -143,6 +176,7 @@ THStorage* THStorage_(newWithDataAndAllocator)(real* data, long size,
   storage->flag = TH_STORAGE_REFCOUNTED | TH_STORAGE_RESIZABLE | TH_STORAGE_FREEMEM;
   storage->allocator = allocator;
   storage->allocatorContext = allocatorContext;
+  storage->mkldnn = 0;
   return storage;
 }
 

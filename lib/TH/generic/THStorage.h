@@ -30,6 +30,7 @@ typedef struct THStorage
     THAllocator *allocator;
     void *allocatorContext;
     struct THStorage *view;
+    int mkldnn; //mkldnn flag, default 0, if mkldnn alloc this buffer,set to 1
 } THStorage;
 
 TH_API real* THStorage_(data)(const THStorage*);
@@ -39,6 +40,7 @@ TH_API int THStorage_(elementSize)(void);
 /* slow access -- checks everything */
 TH_API void THStorage_(set)(THStorage*, long, real);
 TH_API real THStorage_(get)(const THStorage*, long);
+TH_API void THStorage_(setMKLDNN)(const THStorage *self);
 
 TH_API THStorage* THStorage_(new)(void);
 TH_API THStorage* THStorage_(newWithSize)(long size);
