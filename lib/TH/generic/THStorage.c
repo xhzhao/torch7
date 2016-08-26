@@ -130,6 +130,7 @@ void THStorage_(freeMKLDNN)(THStorage *storage)
         THStorage_(free)(storage->view);
       }
       //THFree(storage);
+      fprintf(stderr, "freeMKLDNN, buffer = 0x%x \n",storage->data);
       dnnReleaseBuffer_F32(storage->data);
     }
   }
@@ -141,7 +142,7 @@ void THStorage_(free)(THStorage *storage)
     return;
   if(storage->mkldnn != 0)
   {
-    THStorage_(freeMKLDNN)(storage);
+    //THStorage_(freeMKLDNN)(storage);
     return;
   }
 
