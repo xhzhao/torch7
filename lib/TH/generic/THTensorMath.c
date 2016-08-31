@@ -527,7 +527,6 @@ void THTensor_(add)(THTensor *r_, THTensor *t, real value)
       for (i=0; i<sz; i++)
           rp[i] = tp[i] + value;
   } else {
-      printf("THTensor_(add) serial\n");
       TH_TENSOR_APPLY2(real, r_, real, t, *r__data = *t_data + value;);
   }
 }
@@ -550,7 +549,6 @@ void THTensor_(mul)(THTensor *r_, THTensor *t, real value)
       for (i=0; i<sz; i++)
           rp[i] = tp[i] * value;
   } else {
-      printf("THTensor_(mul) serial\n");
       TH_TENSOR_APPLY2(real, r_, real, t, *r__data = *t_data * value;);
   }
 }
@@ -568,7 +566,6 @@ void THTensor_(div)(THTensor *r_, THTensor *t, real value)
       for (i=0; i<sz; i++)
           rp[i] = tp[i] / value;
   } else {
-    printf("THTensor_(div) serial\n");
       TH_TENSOR_APPLY2(real, r_, real, t, *r__data = *t_data / value;);
   }
 }
@@ -677,7 +674,6 @@ void THTensor_(cadd)(THTensor *r_, THTensor *t, real value, THTensor *src)
   }
   else if((r_ == t) && (dimI == dimO) && (dimI == 4) && (1 == src->stride[3]) && (1 == r_->stride[3]) && (THTensor_(isContiguous)(src)) && THTensor_(nElement)(r_) == THTensor_(nElement)(src))
   {
-      printf("THTensor_(cadd) parallel Modify4\n");
       real *tp = THTensor_(data)(t);
       real *sp = THTensor_(data)(src);
       real *rp = THTensor_(data)(r_);
@@ -707,7 +703,6 @@ void THTensor_(cadd)(THTensor *r_, THTensor *t, real value, THTensor *src)
   }
   else
   {
-    printf("THTensor_(cadd) serial\n");
     TH_TENSOR_APPLY3(real, r_, real, t, real, src, *r__data = *t_data + value * *src_data;);
   }
 }
@@ -731,7 +726,6 @@ void THTensor_(cmul)(THTensor *r_, THTensor *t, THTensor *src)
       for (i=0; i<sz; i++)
         rp[i] = tp[i] * sp[i];
   } else {
-      printf("THTensor_(cmul) serial\n");
       TH_TENSOR_APPLY3(real, r_, real, t, real, src, *r__data = *t_data * *src_data;);
   }
 }
@@ -768,7 +762,6 @@ void THTensor_(cdiv)(THTensor *r_, THTensor *t, THTensor *src)
       for (i=0; i<sz; i++)
         rp[i] = tp[i] / sp[i];
   } else {
-    printf("THTensor_(cdiv) serial\n");
       TH_TENSOR_APPLY3(real, r_, real, t, real, src, *r__data = *t_data / *src_data;);
   }
 }
