@@ -1,4 +1,5 @@
 #include <mkl_vsl.h>
+#include <sys/time.h>
 
 #ifndef TH_GENERIC_FILE
 #define TH_GENERIC_FILE "generic/THTensorRandom.c"
