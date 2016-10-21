@@ -132,8 +132,6 @@ SET(src
   THLogAdd.c THRandom.c THFile.c THDiskFile.c THMemoryFile.c THAtomic.c)
 
 SET(src ${src} ${hdr} ${simd})
-INCLUDE_DIRECTORIES("${MKL_INCLUDE_DIR}")
-
 ADD_LIBRARY(TH SHARED ${src})
 if(BUILD_STATIC)
   ADD_LIBRARY(TH_static STATIC ${src})
