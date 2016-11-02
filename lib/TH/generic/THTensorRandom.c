@@ -1,11 +1,13 @@
 #include <mkl_vsl.h>
 #include <sys/time.h>
+#include "random.h"
 
 #ifndef TH_GENERIC_FILE
 #define TH_GENERIC_FILE "generic/THTensorRandom.c"
 #else
 
 #define min(x,y)  ( x<y?x:y )
+
 
 void THTensor_(random)(THTensor *self, THGenerator *_generator)
 {
@@ -41,13 +43,19 @@ void THTensor_(bernoulli)(THTensor *self, THGenerator *_generator, double p)
   struct timeval start;
   gettimeofday(&start,NULL);
   long seed = start.tv_sec * 1000 + (double)start.tv_usec/1000;
-  
+  /*
   //generate mt19937 random number
   VSLStreamStatePtr stream_mt19937;
   vslNewStream( &stream_mt19937, VSL_BRNG_MT19937, seed);
   int *seed_mt19937 = (int*)malloc(1*sizeof(int));
   vsRngUniform( VSL_RNG_METHOD_UNIFORM_STD, stream_mt19937, 1, seed_mt19937, 1, 4294967295);
   vslDeleteStream(&stream_mt19937);
+  */
+  
+  RNG  rng = RNGInit(seed);
+  unsigned long seedNew = RandInt(&rng);
+  
+  
  
   //mt19937 as seed to generate bernoulli  
   int n = THTensor_(nElement)(self);
@@ -65,10 +73,10 @@ void THTensor_(bernoulli)(THTensor *self, THGenerator *_generator, double p)
          
     if (my_amount > 0) {
       VSLStreamStatePtr stream;
-      vslNewStream(&stream, VSL_BRNG_MCG31, seed_mt19937[0]);
+//      vslNewStream(&stream, VSL_BRNG_MCG31, seed_mt19937[0]);
+       vslNewStream(&stream, VSL_BRNG_MCG31, seedNew);
       vslSkipAheadStream(stream, my_offset);
-      viRngBernoulli(VSL_RNG_METHOD_BERNOULLI_ICDF, stream, my_amount,
-        tmp + my_offset, p);
+      viRngBernoulli(VSL_RNG_METHOD_BERNOULLI_ICDF, stream, my_amount, tmp + my_offset, p);
       vslDeleteStream(&stream);
     }
   }
@@ -78,7 +86,7 @@ void THTensor_(bernoulli)(THTensor *self, THGenerator *_generator, double p)
     r[k]=tmp[k];
   }
   free(tmp);
-  free(seed_mt19937);
+  //free(seed_mt19937);
 }
 
 void THTensor_(bernoulli_FloatTensor)(THTensor *self, THGenerator *_generator, THFloatTensor *p)

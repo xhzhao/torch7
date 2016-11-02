@@ -35,7 +35,6 @@ SET(INTEL_MKL_DIR CACHE STRING
   "Root directory of the Intel MKL (standalone)")
 SET(INTEL_MKL_SEQUENTIAL OFF CACHE BOOL
   "Force using the sequential (non threaded) libraries")
-
 # Checks
 CHECK_TYPE_SIZE("void*" SIZE_OF_VOIDP)
 IF ("${SIZE_OF_VOIDP}" EQUAL 8)
@@ -51,17 +50,19 @@ IF(CMAKE_COMPILER_IS_GNUCC)
   SET(mklthreads "mkl_gnu_thread" "mkl_intel_thread")
   SET(mklifaces  "gf" "intel")
   SET(mklrtls)
+  SET(mklmls "mklml_gnu" "mklml_intel")
 ELSE(CMAKE_COMPILER_IS_GNUCC)
   SET(mklthreads "mkl_intel_thread")
   SET(mklifaces  "intel")
   SET(mklrtls "iomp5" "guide")
+  SET(mklmls "mklml_intel")
 ENDIF (CMAKE_COMPILER_IS_GNUCC)
 
 # Kernel libraries dynamically loaded
 SET(mklkerlibs "mc" "mc3" "nc" "p4n" "p4m" "p4m3" "p4p" "def")
 SET(mklseq)
 
-
+MESSAGE("1xxxxxxxxx${MKLROOT}")
 
 # Paths
 SET(saved_CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH})
@@ -109,7 +110,7 @@ MACRO(CHECK_ALL_LIBRARIES LIBRARIES _name _list _flags)
   message(STATUS "Checking for [${__list}]")
   FOREACH(_library ${_list})
     SET(_combined_name ${_combined_name}_${_library})
-    IF(_libraries_work)      
+    IF(_libraries_work)   
       FIND_LIBRARY(${_prefix}_${_library}_LIBRARY NAMES ${_library})
       MARK_AS_ADVANCED(${_prefix}_${_library}_LIBRARY)
       SET(${LIBRARIES} ${${LIBRARIES}} ${${_prefix}_${_library}_LIBRARY})
@@ -142,6 +143,10 @@ if(WIN32)
 else(WIN32)
   set(mkl_m "m")
 endif(WIN32)
+FIND_LIBRARY(cmakePath libmklml_intel.so)
+IF(cmakePath)
+   MESSAGE("---------------${cmakePath}")
+ENDIF(cmakePath)
 
 
 # Check for version 10/11
@@ -152,10 +157,12 @@ FOREACH(mklrtl ${mklrtls} "")
   FOREACH(mkliface ${mklifaces})
     FOREACH(mkl64 ${mkl64s} "")
       FOREACH(mklthread ${mklthreads})
-        IF (NOT MKL_LIBRARIES AND NOT INTEL_MKL_SEQUENTIAL)
-          CHECK_ALL_LIBRARIES(MKL_LIBRARIES cblas_sgemm
-            "mkl_${mkliface}${mkl64};${mklthread};mkl_rt;mkl_core;${mklrtl};pthread;${mkl_m}" "")
-        ENDIF (NOT MKL_LIBRARIES AND NOT INTEL_MKL_SEQUENTIAL)          
+        FOREACH(mklml ${mklmls})
+          IF (NOT MKL_LIBRARIES AND NOT INTEL_MKL_SEQUENTIAL)
+            CHECK_ALL_LIBRARIES(MKL_LIBRARIES cblas_sgemm
+              "${mklml};${mkliface}${mkl64};${mklthread};mkl_rt;mkl_core;${mklrtl};pthread;${mkl_m}" "")
+          ENDIF (NOT MKL_LIBRARIES AND NOT INTEL_MKL_SEQUENTIAL)          
+        ENDFOREACH(mklml)
       ENDFOREACH(mklthread)
     ENDFOREACH(mkl64)
   ENDFOREACH(mkliface)
@@ -163,13 +170,15 @@ ENDFOREACH(mklrtl)
 FOREACH(mklrtl ${mklrtls} "")
   FOREACH(mkliface ${mklifaces})
     FOREACH(mkl64 ${mkl64s} "")
-      IF (NOT MKL_LIBRARIES)
-        CHECK_ALL_LIBRARIES(MKL_LIBRARIES cblas_sgemm
-          "mkl_${mkliface}${mkl64};mkl_sequential;mkl_rt;mkl_core;${mkl_m}" "")
-        IF (MKL_LIBRARIES)
-          SET(mklseq "_sequential")
-        ENDIF (MKL_LIBRARIES)
-      ENDIF (NOT MKL_LIBRARIES)
+      FOREACH(mklml ${mklmls})
+        IF (NOT MKL_LIBRARIES)
+          CHECK_ALL_LIBRARIES(MKL_LIBRARIES cblas_sgemm
+            "${mklml};mkl_${mkliface}${mkl64};mkl_sequential;mkl_rt;mkl_core;${mkl_m}" "")
+          IF (MKL_LIBRARIES)
+            SET(mklseq "_sequential")
+          ENDIF (MKL_LIBRARIES)
+        ENDIF (NOT MKL_LIBRARIES)
+      ENDFOREACH(mklml)
     ENDFOREACH(mkl64)
   ENDFOREACH(mkliface)
 ENDFOREACH(mklrtl)
@@ -177,14 +186,26 @@ FOREACH(mklrtl ${mklrtls} "")
   FOREACH(mkliface ${mklifaces})
     FOREACH(mkl64 ${mkl64s} "")
       FOREACH(mklthread ${mklthreads})
-        IF (NOT MKL_LIBRARIES)
-          CHECK_ALL_LIBRARIES(MKL_LIBRARIES cblas_sgemm
-            "mkl_${mkliface}${mkl64};${mklthread};mkl_rt;mkl_core;${mklrtl};pthread;${mkl_m}" "")
-        ENDIF (NOT MKL_LIBRARIES)          
+        FOREACH(mklml ${mklmls})
+          IF (NOT MKL_LIBRARIES)
+            CHECK_ALL_LIBRARIES(MKL_LIBRARIES cblas_sgemm
+              "${mklml};mkl_${mkliface}${mkl64};${mklthread};mkl_rt;mkl_core;${mklrtl};pthread;${mkl_m}" "")
+          ENDIF (NOT MKL_LIBRARIES)          
+        ENDFOREACH(mklml)
       ENDFOREACH(mklthread)
     ENDFOREACH(mkl64)
   ENDFOREACH(mkliface)
 ENDFOREACH(mklrtl)
+
+        FOREACH(mklml ${mklmls})
+          IF (NOT MKL_LIBRARIES)
+            CHECK_ALL_LIBRARIES(MKL_LIBRARIES cblas_sgemm
+              "${mklml}" "")
+          ENDIF (NOT MKL_LIBRARIES)
+        ENDFOREACH(mklml)
+
+
+
 
 # Check for older versions
 IF (NOT MKL_LIBRARIES)

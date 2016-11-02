@@ -92,6 +92,7 @@ IF(UNIX)
   ENDIF(HAVE_MALLOC_USABLE_SIZE)
 ENDIF(UNIX)
 
+
 FIND_PACKAGE(SSE)
 IF(C_SSE2_FOUND)
   SET(CMAKE_C_FLAGS "${C_SSE2_FLAGS} -DUSE_SSE2 ${CMAKE_C_FLAGS}")
@@ -123,6 +124,9 @@ IF(C_AVX_FOUND)
   SET(simd ${simd} generic/simd/convolve5x5_avx.c)
 ENDIF(C_AVX_FOUND)
 
+
+FIND_PACKAGE(BLAS)
+
 SET(hdr
   THGeneral.h THAllocator.h THStorage.h THTensor.h THTensorApply.h THBlas.h THMath.h
   THLapack.h THLogAdd.h THRandom.h THVector.h THAtomic.h)
@@ -132,6 +136,9 @@ SET(src
   THLogAdd.c THRandom.c THFile.c THDiskFile.c THMemoryFile.c THAtomic.c)
 
 SET(src ${src} ${hdr} ${simd})
+MESSAGE("------------------${MKL_INCLUDE_DIR}")
+INCLUDE_DIRECTORIES("${MKL_INCLUDE_DIR}")
+
 ADD_LIBRARY(TH SHARED ${src})
 if(BUILD_STATIC)
   ADD_LIBRARY(TH_static STATIC ${src})
@@ -198,7 +205,8 @@ ELSE()
   ENDIF()
 ENDIF()
 
-FIND_PACKAGE(BLAS)
+
+
 IF(BLAS_FOUND)
   SET(USE_BLAS 1)
   TARGET_LINK_LIBRARIES(TH ${BLAS_LIBRARIES})
