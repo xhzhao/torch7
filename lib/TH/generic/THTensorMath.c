@@ -2,7 +2,7 @@
 #define TH_GENERIC_FILE "generic/THTensorMath.c"
 #else
 
-#define TH_OMP_OVERHEAD_THRESHOLD 100000
+#define TH_OMP_OVERHEAD_THRESHOLD 10
 
 void THTensor_(fill)(THTensor *r_, real value)
 {
@@ -445,8 +445,10 @@ accreal THTensor_(prodall)(THTensor *tensor)
 
 void THTensor_(add)(THTensor *r_, THTensor *t, real value)
 {
+
   THTensor_(resizeAs)(r_, t);
   if (THTensor_(isContiguous)(r_) && THTensor_(isContiguous)(t) && THTensor_(nElement)(r_) == THTensor_(nElement)(t)) {
+      //printf("THTensor_(add) parallel\n");
       real *tp = THTensor_(data)(t);
       real *rp = THTensor_(data)(r_);
       long sz = THTensor_(nElement)(t);
@@ -455,6 +457,7 @@ void THTensor_(add)(THTensor *r_, THTensor *t, real value)
       for (i=0; i<sz; i++)
           rp[i] = tp[i] + value;
   } else {
+      printf("THTensor_(add) serial\n");
       TH_TENSOR_APPLY2(real, r_, real, t, *r__data = *t_data + value;);
   }
 }
@@ -468,6 +471,7 @@ void THTensor_(mul)(THTensor *r_, THTensor *t, real value)
 {
   THTensor_(resizeAs)(r_, t);
   if (THTensor_(isContiguous)(r_) && THTensor_(isContiguous)(t) && THTensor_(nElement)(r_) == THTensor_(nElement)(t)) {
+      //printf("THTensor_(mul) parallel\n");
       real *tp = THTensor_(data)(t);
       real *rp = THTensor_(data)(r_);
       long sz = THTensor_(nElement)(t);
@@ -476,6 +480,7 @@ void THTensor_(mul)(THTensor *r_, THTensor *t, real value)
       for (i=0; i<sz; i++)
           rp[i] = tp[i] * value;
   } else {
+      printf("THTensor_(mul) serial\n");
       TH_TENSOR_APPLY2(real, r_, real, t, *r__data = *t_data * value;);
   }
 }
@@ -484,6 +489,7 @@ void THTensor_(div)(THTensor *r_, THTensor *t, real value)
 {
   THTensor_(resizeAs)(r_, t);
   if (THTensor_(isContiguous)(r_) && THTensor_(isContiguous)(t) && THTensor_(nElement)(r_) == THTensor_(nElement)(t)) {
+      //printf("THTensor_(div) parallel\n");
       real *tp = THTensor_(data)(t);
       real *rp = THTensor_(data)(r_);
       long sz = THTensor_(nElement)(t);
@@ -492,6 +498,7 @@ void THTensor_(div)(THTensor *r_, THTensor *t, real value)
       for (i=0; i<sz; i++)
           rp[i] = tp[i] / value;
   } else {
+    printf("THTensor_(div) serial\n");
       TH_TENSOR_APPLY2(real, r_, real, t, *r__data = *t_data / value;);
   }
 }
@@ -547,11 +554,15 @@ void THTensor_(clamp)(THTensor *r_, THTensor *t, real min_value, real max_value)
 
 void THTensor_(cadd)(THTensor *r_, THTensor *t, real value, THTensor *src)
 {
+  int dimI = src->nDimension;
+  int dimO = r_->nDimension;
   THTensor_(resizeAs)(r_, t);
   if (THTensor_(isContiguous)(r_) && THTensor_(isContiguous)(t) && THTensor_(isContiguous)(src) && THTensor_(nElement)(r_) == THTensor_(nElement)(src)) {
     if(r_ == t) {
+      //printf("THTensor_(cadd) blas\n");
       THBlas_(axpy)(THTensor_(nElement)(t), value, THTensor_(data)(src), 1, THTensor_(data)(r_), 1);
     } else {
+      //printf("THTensor_(cadd) parallel\n");
       real *tp = THTensor_(data)(t);
       real *sp = THTensor_(data)(src);
       real *rp = THTensor_(data)(r_);
@@ -561,8 +572,73 @@ void THTensor_(cadd)(THTensor *r_, THTensor *t, real value, THTensor *src)
       for (i=0; i< sz; i++)
           rp[i] = tp[i] + value * sp[i];
     }
-  } else {
-      TH_TENSOR_APPLY3(real, r_, real, t, real, src, *r__data = *t_data + value * *src_data;);
+  } 
+  else if((r_ == t) && (dimI == dimO) && (dimI == 3) && (1 == src->stride[2]) && (1 == r_->stride[2]) && (THTensor_(isContiguous)(src)) && THTensor_(nElement)(r_) == THTensor_(nElement)(src))
+  {
+  //    printf("THTensor_(cadd) parallel Modify\n");
+      real *tp = THTensor_(data)(t);
+      real *sp = THTensor_(data)(src);
+      real *rp = THTensor_(data)(r_);
+      long sz = THTensor_(nElement)(src);  //src is contiguous, so its size is more reliable
+
+      long i = 0;
+      long long k = 0;
+      long jj = 0;
+      long  kk = 0;
+      long long rstBasicIndex = 0;
+
+//on such situation, dst is not contiguous.So let us traverse src and computation the position of dst. 
+#pragma omp parallel for private(k)
+      for(k=0; k < sz; k+=src->stride[1])
+      { 
+        kk = k/src->stride[0];
+        jj = (k%src->stride[0])/src->stride[1];   //get corresponding coordinate
+        rstBasicIndex = kk*t->stride[0] + jj*t->stride[1];
+        for(i=0; i < src->stride[1]; i++)
+        {
+          rp[i+rstBasicIndex] = tp[i+rstBasicIndex] + value * sp[i+k];
+        }
+      }
+    
+      //TH_TENSOR_APPLY3(real, r_, real, t, real, src, *r__data = *t_data + value * *src_data;);
+      //if()
+        //printf("same t dim is %4d r_ dim is %4d\n", t->nDimension, r_->nDimension);
+      
+  }
+  else if((r_ == t) && (dimI == dimO) && (dimI == 4) && (1 == src->stride[3]) && (1 == r_->stride[3]) && (THTensor_(isContiguous)(src)) && THTensor_(nElement)(r_) == THTensor_(nElement)(src))
+  {
+      printf("THTensor_(cadd) parallel Modify4\n");
+      real *tp = THTensor_(data)(t);
+      real *sp = THTensor_(data)(src);
+      real *rp = THTensor_(data)(r_);
+      long sz = THTensor_(nElement)(src);  //src is contiguous, so its size is more reliable
+
+      long i = 0;
+      long long k = 0;
+      long ii = 0;
+      long jj = 0;
+      long  kk = 0;
+      long long rstBasicIndex = 0;
+
+//on such situation, dst is not contiguous.So let us traverse src and computation the position of dst. 
+#pragma omp parallel for private(k)
+      for(k=0; k < sz; k+=src->stride[2])
+      { 
+        kk = k/src->stride[0];
+        jj = (k%src->stride[0])/src->stride[1];   
+        ii = (k%src->stride[1])/src->stride[2]; //get corresponding coordinate
+        rstBasicIndex = kk*t->stride[0] + jj*t->stride[1] + ii*t->stride[2];
+        for(i=0; i < src->stride[2]; i++)
+        {
+          rp[i+rstBasicIndex] = tp[i+rstBasicIndex] + value * sp[i+k];
+        }
+      }
+    
+  }
+  else
+  {
+    printf("THTensor_(cadd) serial\n");
+    TH_TENSOR_APPLY3(real, r_, real, t, real, src, *r__data = *t_data + value * *src_data;);
   }
 }
 
@@ -575,6 +651,7 @@ void THTensor_(cmul)(THTensor *r_, THTensor *t, THTensor *src)
 {
   THTensor_(resizeAs)(r_, t);
   if (THTensor_(isContiguous)(r_) && THTensor_(isContiguous)(t) && THTensor_(isContiguous)(src) && THTensor_(nElement)(r_) == THTensor_(nElement)(src)) {
+//      printf("THTensor_(cmul) parallel\n");
       real *tp = THTensor_(data)(t);
       real *sp = THTensor_(data)(src);
       real *rp = THTensor_(data)(r_);
@@ -584,6 +661,7 @@ void THTensor_(cmul)(THTensor *r_, THTensor *t, THTensor *src)
       for (i=0; i<sz; i++)
         rp[i] = tp[i] * sp[i];
   } else {
+      printf("THTensor_(cmul) serial\n");
       TH_TENSOR_APPLY3(real, r_, real, t, real, src, *r__data = *t_data * *src_data;);
   }
 }
@@ -601,6 +679,7 @@ void THTensor_(cpow)(THTensor *r_, THTensor *t, THTensor *src)
       for (i=0; i<sz; i++)
         rp[i] = pow(tp[i], sp[i]);
   } else {
+
       TH_TENSOR_APPLY3(real, r_, real, t, real, src, *r__data = pow(*t_data, *src_data););
   }
 }
@@ -609,6 +688,7 @@ void THTensor_(cdiv)(THTensor *r_, THTensor *t, THTensor *src)
 {
   THTensor_(resizeAs)(r_, t);
   if (THTensor_(isContiguous)(r_) && THTensor_(isContiguous)(t) && THTensor_(isContiguous)(src) && THTensor_(nElement)(r_) == THTensor_(nElement)(src)) {
+//      printf("THTensor_(cdiv) parallel\n");
       real *tp = THTensor_(data)(t);
       real *sp = THTensor_(data)(src);
       real *rp = THTensor_(data)(r_);
@@ -618,6 +698,7 @@ void THTensor_(cdiv)(THTensor *r_, THTensor *t, THTensor *src)
       for (i=0; i<sz; i++)
         rp[i] = tp[i] / sp[i];
   } else {
+    printf("THTensor_(cdiv) serial\n");
       TH_TENSOR_APPLY3(real, r_, real, t, real, src, *r__data = *t_data / *src_data;);
   }
 }
@@ -795,6 +876,7 @@ void THTensor_(addmm)(THTensor *r_, real beta, THTensor *t, real alpha, THTensor
 {
   char transpose_r, transpose_m1, transpose_m2;
   THTensor *r__, *m1_, *m2_;
+  int dimM, dimN, dimK;
 
   if( (m1->nDimension != 2) || (m2->nDimension != 2))
     THError("matrices expected, got %dD, %dD tensors", m1->nDimension, m2->nDimension);
@@ -843,9 +925,8 @@ void THTensor_(addmm)(THTensor *r_, real beta, THTensor *t, real alpha, THTensor
   {
     transpose_r = 'n';
 
-    THTensor *transp_r_ = THTensor_(newTranspose)(r_, 0, 1);
-    r__ = THTensor_(newClone)(transp_r_);
-    THTensor_(free)(transp_r_);
+    r__ = THTensor_(newWithSize2d)(r_->size[1], r_->size[0]);
+    THTensor_(copy)(r__, r_);
     THTensor_(transpose)(r__, NULL, 0, 1);
   }
 
@@ -887,12 +968,17 @@ void THTensor_(addmm)(THTensor *r_, real beta, THTensor *t, real alpha, THTensor
     m2_ = THTensor_(newContiguous)(m2);
   }
 
+
+  dimM = r__->size[(transpose_r == 'n' ? 0 : 1)];
+  dimN = r__->size[(transpose_r == 'n' ? 1 : 0)];
+  dimK = m1_->size[(transpose_r == 'n' ? 1 : 0)];
+//  printf("m:%10d    n:%10d   k:%10d\n", dimM, dimN, dimK);
   /* do the operation */
   THBlas_(gemm)(transpose_m1,
                 transpose_m2,
-                r__->size[(transpose_r == 'n' ? 0 : 1)],
-                r__->size[(transpose_r == 'n' ? 1 : 0)],
-                m1_->size[(transpose_r == 'n' ? 1 : 0)],
+                dimM,
+                dimN,
+                dimK,
                 alpha,
                 THTensor_(data)(m1_),
                 (transpose_m1 == 'n' ? m1_->stride[(transpose_r == 'n' ? 1 : 0)] : m1_->stride[(transpose_r == 'n' ? 0 : 1)]),
@@ -901,7 +987,7 @@ void THTensor_(addmm)(THTensor *r_, real beta, THTensor *t, real alpha, THTensor
                 beta,
                 THTensor_(data)(r__),
                 r__->stride[(transpose_r == 'n' ? 1 : 0)]);
-
+  
   /* free intermediate variables */
   if(m1_ != m1)
     THTensor_(free)(m1_);
