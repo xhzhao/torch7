@@ -82,7 +82,7 @@ typedef struct THRealTensor
     int refcount;
 
     char flag;
-
+    long mkldnnLayout;
 } THRealTensor;
 ]]
       cdefs = cdefs:gsub('Real', Real):gsub('real', real)

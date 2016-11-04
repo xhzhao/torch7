@@ -119,6 +119,40 @@ void THTensor_(nonzero)(THLongTensor *subscript, THTensor *tensor)
                   ++i;);
 }
 
+void THTensor_(indexCopySpecify)(THTensor *tensor, int dimIndex, THTensor *src)
+{
+    real *tp = THTensor_(data)(src);
+    real *rp = THTensor_(data)(tensor);
+    // when dimension geater than dim
+    long outIter = 1;
+    long innerIter = 1;
+    long i = 0;
+    for (i = 0; i < dimIndex; i++) //in 3, max 3 .iter 3
+    {
+        outIter *= src->size[i];
+    }
+    for (i = src->nDimension-1; i > dimIndex-1; i--) // ndim 3,ndim-1=2, dimInd=2, start 2 end 2
+    {
+        innerIter *= src->size[i];
+    }
+
+    long j = 0;
+    long srcOuterStride = src->stride[dimIndex-1];
+    long tensorOuterStride = tensor->stride[dimIndex-1];
+    #pragma omp parallel for if(outIter > TH_OMP_OVERHEAD_THRESHOLD)
+    for(i = 0; i < outIter; i++)
+    {
+        #pragma omp parallel for if(outIter > TH_OMP_OVERHEAD_THRESHOLD)
+        #pragma ivdep
+        for(j = 0; j < innerIter; j++)
+        {
+            rp[j] = tp[j];
+        }
+        tp += srcOuterStride;
+        rp += tensorOuterStride;
+    }
+
+}
 void THTensor_(indexSelect)(THTensor *tensor, THTensor *src, int dim, THLongTensor *index)
 {
   long i, numel;
@@ -180,7 +214,7 @@ void THTensor_(indexSelect)(THTensor *tensor, THTensor *src, int dim, THLongTens
       sSlice = THTensor_(new)();
       THTensor_(select)(tSlice, tensor, dim, i);
       THTensor_(select)(sSlice, src, dim, index_data[i]-1);
-      THTensor_(copy)(tSlice, sSlice);
+      THTensor_(indexCopySpecify)(tSlice, dim, sSlice);
       THTensor_(free)(tSlice);
       THTensor_(free)(sSlice);
     }
@@ -212,7 +246,7 @@ void THTensor_(indexCopy)(THTensor *tensor, int dim, THLongTensor *index, THTens
     {
       THTensor_(select)(tSlice, tensor, dim, index_data[i]-1);
       THTensor_(select)(sSlice, src, dim, i);
-      THTensor_(copy)(tSlice, sSlice);
+      THTensor_(indexCopySpecify)(tSlice, dim, sSlice);
     }
 
     THTensor_(free)(tSlice);
@@ -226,6 +260,41 @@ void THTensor_(indexCopy)(THTensor *tensor, int dim, THLongTensor *index, THTens
     }
   }
   THLongTensor_free(index);
+}
+
+void THTensor_(indexAddSpecify)(THTensor *tensor, int dimIndex, THTensor *src)
+{
+    real *tp = THTensor_(data)(src);
+    real *rp = THTensor_(data)(tensor);
+    // when dimension geater than dim
+    long outIter = 1;
+    long innerIter = 1;
+    long i = 0;
+    for (i = 0; i < dimIndex; i++) //in 3, max 3 .iter 3
+    {
+        outIter *= src->size[i];
+    }
+    for (i = src->nDimension-1; i > dimIndex-1; i--) // ndim 3,ndim-1=2, dimInd=2, start 2 end 2
+    {
+        innerIter *= src->size[i];
+    }
+
+    long j = 0;
+    long srcOuterStride = src->stride[dimIndex-1];
+    long tensorOuterStride = tensor->stride[dimIndex-1];
+    #pragma omp parallel for if(outIter > TH_OMP_OVERHEAD_THRESHOLD)
+    for(i = 0; i < outIter; i++)
+    {
+        #pragma omp parallel for if(outIter > TH_OMP_OVERHEAD_THRESHOLD)
+        #pragma ivdep
+        for(j = 0; j < innerIter; j++)
+        {
+            rp[j] += tp[j];
+        }
+        tp += srcOuterStride;
+        rp += tensorOuterStride;
+    }
+
 }
 
 void THTensor_(indexAdd)(THTensor *tensor, int dim, THLongTensor *index, THTensor *src)
@@ -251,7 +320,8 @@ void THTensor_(indexAdd)(THTensor *tensor, int dim, THLongTensor *index, THTenso
     {
       THTensor_(select)(tSlice, tensor, dim, index_data[i]-1);
       THTensor_(select)(sSlice, src, dim, i);
-      THTensor_(cadd)(tSlice, tSlice, 1.0, sSlice);
+      THTensor_(indexAddSpecify)(tSlice, dim, sSlice);
+//      THTensor_(cadd)(tSlice, tSlice, 1.0, sSlice);
     }
 
     THTensor_(free)(tSlice);
@@ -457,7 +527,6 @@ void THTensor_(add)(THTensor *r_, THTensor *t, real value)
       for (i=0; i<sz; i++)
           rp[i] = tp[i] + value;
   } else {
-      printf("THTensor_(add) serial\n");
       TH_TENSOR_APPLY2(real, r_, real, t, *r__data = *t_data + value;);
   }
 }
@@ -480,7 +549,6 @@ void THTensor_(mul)(THTensor *r_, THTensor *t, real value)
       for (i=0; i<sz; i++)
           rp[i] = tp[i] * value;
   } else {
-      printf("THTensor_(mul) serial\n");
       TH_TENSOR_APPLY2(real, r_, real, t, *r__data = *t_data * value;);
   }
 }
@@ -498,7 +566,6 @@ void THTensor_(div)(THTensor *r_, THTensor *t, real value)
       for (i=0; i<sz; i++)
           rp[i] = tp[i] / value;
   } else {
-    printf("THTensor_(div) serial\n");
       TH_TENSOR_APPLY2(real, r_, real, t, *r__data = *t_data / value;);
   }
 }
@@ -607,7 +674,6 @@ void THTensor_(cadd)(THTensor *r_, THTensor *t, real value, THTensor *src)
   }
   else if((r_ == t) && (dimI == dimO) && (dimI == 4) && (1 == src->stride[3]) && (1 == r_->stride[3]) && (THTensor_(isContiguous)(src)) && THTensor_(nElement)(r_) == THTensor_(nElement)(src))
   {
-      printf("THTensor_(cadd) parallel Modify4\n");
       real *tp = THTensor_(data)(t);
       real *sp = THTensor_(data)(src);
       real *rp = THTensor_(data)(r_);
@@ -637,7 +703,6 @@ void THTensor_(cadd)(THTensor *r_, THTensor *t, real value, THTensor *src)
   }
   else
   {
-    printf("THTensor_(cadd) serial\n");
     TH_TENSOR_APPLY3(real, r_, real, t, real, src, *r__data = *t_data + value * *src_data;);
   }
 }
@@ -661,7 +726,6 @@ void THTensor_(cmul)(THTensor *r_, THTensor *t, THTensor *src)
       for (i=0; i<sz; i++)
         rp[i] = tp[i] * sp[i];
   } else {
-      printf("THTensor_(cmul) serial\n");
       TH_TENSOR_APPLY3(real, r_, real, t, real, src, *r__data = *t_data * *src_data;);
   }
 }
@@ -698,7 +762,6 @@ void THTensor_(cdiv)(THTensor *r_, THTensor *t, THTensor *src)
       for (i=0; i<sz; i++)
         rp[i] = tp[i] / sp[i];
   } else {
-    printf("THTensor_(cdiv) serial\n");
       TH_TENSOR_APPLY3(real, r_, real, t, real, src, *r__data = *t_data / *src_data;);
   }
 }
@@ -2593,3 +2656,4 @@ void THTensor_(histc)(THTensor *hist, THTensor *tensor, long nbins, real minvalu
 
 #endif /* floating point only part */
 #endif
+

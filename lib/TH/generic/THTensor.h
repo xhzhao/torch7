@@ -17,7 +17,7 @@ typedef struct THTensor
     int refcount;
 
     char flag;
-
+    long mkldnnLayout;
 } THTensor;
 
 

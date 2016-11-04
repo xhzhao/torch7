@@ -24,7 +24,7 @@
 #if defined (USE_SSE4_2) || defined (USE_SSE4_1)
 #include <smmintrin.h>
 #endif
-#include <immintrin.h>
+
 
 #define THDoubleVector_fill(x, c, n) {          \
     long i;                                     \
@@ -45,25 +45,21 @@
 
 
 #define THDoubleVector_add(y, x, c, n) {        \
-    long i = 0;                                 \
-    __m128d XMM7 = _mm_set1_pd(c);              \
-    __m128d XMM0,XMM2;                          \
-    _Pragma("omp parallel for")                           \
-    for (; i<=((n)-2); i+=2) {                  \
-      XMM0 = _mm_loadu_pd((x)+i);               \
-      XMM2 = _mm_loadu_pd((y)+i);               \
-      XMM0 = _mm_mul_pd(XMM0, XMM7);            \
-      XMM2 = _mm_add_pd(XMM2, XMM0);            \
-      _mm_storeu_pd((y)+i  , XMM2);             \
-    }                                           \
-    for (; i<(n); i++) {                        \
-      y[i] += c * x[i];                         \
-    }                                           \
-  }
+	long i = 0;                                 \
+	__m128d XMM0;								\
+	_Pragma("omp parallel for")                 \
+	for (i=0; i < n - 2; i += 2)					\
+		{									    \
+		XMM0 = _mm_loadu_pd((y)+i);		    \
+		XMM0 = _mm_add_pd(_mm_mul_pd(_mm_loadu_pd((x)+i), _mm_set1_pd(c)), XMM0); \
+		}										\
+	for (; i < n; i++)							\
+		y[i] += c * x[i];						\
+	}
 
 #define THDoubleVector_diff(z, x, y, n) {       \
     long i;                                     \
-    _Pragma("omp parallel for")                           \
+    _Pragma("omp parallel for")                 \
     for (i=0; i<=((n)-8); i+=8) {               \
       __m128d XMM0 = _mm_loadu_pd((x)+i  );     \
       __m128d XMM1 = _mm_loadu_pd((x)+i+2);     \
@@ -171,7 +167,7 @@
     __m128 XMM7 = _mm_set_ps1(c);               \
     __m128 XMM0,XMM2;                           \
     _Pragma("omp parallel for")                           \
-    for (; i<=((n)-4); i+=4) {                  \
+    for (i=0; i<=((n)-4); i+=4) {                  \
       XMM0 = _mm_loadu_ps((x)+i);               \
       XMM2 = _mm_loadu_ps((y)+i);               \
       XMM0 = _mm_mul_ps(XMM0, XMM7);            \
@@ -187,7 +183,7 @@
     __m128 XMM7 = _mm_set_ps1(c);               \
     __m128 XMM0,XMM2;                           \
     _Pragma("omp parallel for")                           \
-    for (; i<=((n)-4); i+=4) {                  \
+    for (i=0; i<=((n)-4); i+=4) {                  \
       XMM0 = _mm_loadu_ps((x)+i);               \
       XMM2 = _mm_loadu_ps((y)+i);               \
       XMM0 = _mm_mul_ps(XMM0, XMM7);            \
