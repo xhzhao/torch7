@@ -721,6 +721,74 @@ static void THTensor_(rawResize)(THTensor *self, int nDimension, long *size, lon
     self->nDimension = 0;
 }
 
+
+void THTensor_(resizeNd)(THTensor *self, int nDimension, long *size, long *stride)
+{
+  int d;
+  int nDimension_;
+  ptrdiff_t totalSize;
+  int hascorrectsize = 1;
+
+  nDimension_ = 0;
+  for(d = 0; d < nDimension; d++)
+  {
+    if(size[d] > 0)
+    {
+      nDimension_++;
+      if((self->nDimension > d) && (size[d] != self->size[d]))
+        hascorrectsize = 0;
+
+      if((self->nDimension > d) && stride && (stride[d] >= 0) && (stride[d] != self->stride[d]))
+        hascorrectsize = 0;
+    }
+    else
+      break;
+  }
+  nDimension = nDimension_;
+
+  if(nDimension != self->nDimension)
+    hascorrectsize = 0;
+
+  if(hascorrectsize)
+    return;
+
+  if(nDimension > 0)
+  {
+    if(nDimension != self->nDimension)
+    {
+      self->size = THRealloc(self->size, sizeof(long)*nDimension);
+      self->stride = THRealloc(self->stride, sizeof(long)*nDimension);
+      self->nDimension = nDimension;
+    }
+
+    totalSize = 1;
+    for(d = self->nDimension-1; d >= 0; d--)
+    {
+      self->size[d] = size[d];
+      if(stride && (stride[d] >= 0) )
+        self->stride[d] = stride[d];
+      else
+      {
+        if(d == self->nDimension-1)
+          self->stride[d] = 1;
+        else
+          self->stride[d] = self->size[d+1]*self->stride[d+1];
+      }
+      totalSize += (self->size[d]-1)*self->stride[d];
+    }
+
+    if(totalSize+self->storageOffset > 0)
+    {
+      if(!self->storage)
+        self->storage = THStorage_(new)();
+      if(totalSize+self->storageOffset > self->storage->size)
+        THStorage_(resize)(self->storage, totalSize+self->storageOffset);
+    }
+  }
+  else
+    self->nDimension = 0;
+}
+
 void THTensor_(set1d)(THTensor *tensor, long x0, real value)
 {
   THArgCheck(tensor->nDimension == 1, 1, "tensor must have one dimension");
